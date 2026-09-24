@@ -13,6 +13,17 @@ $("#setupOwnerBtn").onclick=async()=>{const email=$("#email").value.trim(),passw
 async function bootstrapOwner(){const name=prompt("Owner full name:","Mahadi");if(!name)return;$("#bootstrapMsg").textContent="Creating Owner profile...";const {data,error}=await sb.rpc("bootstrap_first_owner",{p_full_name:name});if(error){$("#bootstrapMsg").textContent=error.message;return}$("#bootstrapMsg").textContent="Owner profile created. Loading ERP...";await enterApp();}
 function stat(l,v){return `<div class=card stat-card><div class=muted>${l}</div><div class=stat>${typeof v==="number"?v.toLocaleString():v||"0"}</div></div>`}
 async function dashboard(){
+ const today=new Date().toISOString().slice(0,10);
+ const monthStart=new Date();monthStart.setDate(1);
+ const [adv,low]=await Promise.all([
+  sb.rpc("get_erp_advanced_dashboard",{p_from:monthStart.toISOString().slice(0,10),p_to:today}),
+  sb.from("v_low_stock").select("*").limit(8)
+ ]);
+ if(adv.error)return $("#content").innerHTML=`<div class="card error">${esc(adv.error.message)}</div>`;
+ const x=adv.data||{},money=v=>Number(v||0).toLocaleString()+" BDT";
+ $("#content").innerHTML=`<div class="welcome"><div><div class="muted">Business Overview · This Month</div><h2>Good to see you, ${esc(profile?.full_name||"User")} 👋</h2><p class=muted>Sales, purchases, dues, stock and profit overview.</p></div><button class=primary onclick="loadPage('pos')">Open POS</button></div>
+ <div class="grid">${stat("Net Sales",money(x.net_sales))}${stat("Purchases",money(x.purchases))}${stat("Expenses",money(x.expenses))}${stat("Stock Value",money(x.stock_value))}${stat("Customer Due",money(x.customer_due))}${stat("Supplier Due",money(x.supplier_due))}${stat("Low Stock",x.low_stock)}${stat("Sales Returns",money(x.sales_returns))}</div>
+ <div class="grid2"><div class="card"><div class="section-head"><h3>Low Stock</h3><button onclick="lowStock()">View all</button></div>${renderTable(low.data,low.error)}</div><div class="card"><h3>Quick Actions</h3><div class=tabs><button onclick="loadPage('pos')">New Sale</button><button onclick="purchaseEntry()">Purchase</button><button onclick="customerDue()">Customer Due</button><button onclick="supplierDue()">Supplier Due</button></div></div></div>`;}
  const [{data:d,error:e},{data:rs},{data:tp},{data:cd},{data:sd}]=await Promise.all([sb.rpc("get_erp_dashboard"),sb.from("v_dashboard_recent_sales").select("*").order("sale_date",{ascending:false}).limit(8),sb.from("v_dashboard_top_products").select("*").limit(8),sb.from("v_customer_due_summary").select("name,phone,due_amount").gt("due_amount",0).order("due_amount",{ascending:false}).limit(6),sb.from("v_supplier_due_summary").select("name,phone,due_amount").gt("due_amount",0).order("due_amount",{ascending:false}).limit(6)]);
  if(e){$("#content").innerHTML=`<div class=card>${e.message}</div>`;return} const x=d||{};
  const money=v=>Number(v||0).toLocaleString()+" BDT";
@@ -153,7 +164,12 @@ async function pos(){
 function selectPOSPaymentByName(name,btn){const s=$("#posPaymentMethod");const o=[...s.options].find(x=>x.text.toLowerCase()===name.toLowerCase());if(o)s.value=o.value;$(".payment-btn").forEach(b=>b.classList.remove("active"));if(btn)btn.classList.add("active")}
 function refreshPOSWarehouses(){const b=$("#posBranch")?.value;if(!b)return;$("#posWarehouse").innerHTML=(window._posWarehouses||[]).filter(x=>x.branch_id===b).map(x=>`<option value="${x.id}">${x.name}</option>`).join("")}
 function scanPOSBarcode(e){if(e.key!=="Enter")return;e.preventDefault();const q=$("#posSearch").value.trim().toLowerCase();if(!q)return;const p=products.find(x=>String(x.barcode||'').toLowerCase()===q||String(x.sku||'').toLowerCase()===q);if(p){addCart(p.id);$("#posSearch").select();toast(`${p.name} added`)}else{$("#posMsg").textContent="Product barcode / SKU not found."}}
-function renderProducts(){const q=($("#posSearch")?.value||"").toLowerCase();const list=products.filter(p=>(p.name+" "+(p.sku||"")+" "+(p.barcode||"")+" "+(p.color_group||"")).toLowerCase().includes(q)).slice(0,80);$("#productList").innerHTML=list.map(p=>`<button class="product-btn pos-product" onclick="addCart('${p.id}')"><b>${esc(p.name)}</b><span class="muted">${esc(p.categories?.name||p.color_group||'')} · ${esc(p.sku||'')}</span><span class="muted">Barcode: ${esc(p.barcode||'')}</span><strong>৳ ${Number(p.selling_price||0).toLocaleString()}</strong></button>`).join("")||`<div class="muted">No matching products.</div>`}
+function renderProducts(){
+ const q=($("#posSearch")?.value||"").trim().toLowerCase();
+ if(q.length>=2){
+  const exact=products.filter(p=>String(p.barcode||"").toLowerCase()===q);
+  if(exact.length===1 && (event?.key==="Enter")){addToCart(exact[0].id);$("#posSearch").value="";return;}
+ }const q=($("#posSearch")?.value||"").toLowerCase();const list=products.filter(p=>(p.name+" "+(p.sku||"")+" "+(p.barcode||"")+" "+(p.color_group||"")).toLowerCase().includes(q)).slice(0,80);$("#productList").innerHTML=list.map(p=>`<button class="product-btn pos-product" onclick="addCart('${p.id}')"><b>${esc(p.name)}</b><span class="muted">${esc(p.categories?.name||p.color_group||'')} · ${esc(p.sku||'')}</span><span class="muted">Barcode: ${esc(p.barcode||'')}</span><strong>৳ ${Number(p.selling_price||0).toLocaleString()}</strong></button>`).join("")||`<div class="muted">No matching products.</div>`}
 function addCart(id){const p=products.find(x=>x.id===id);if(!p)return;const x=cart.find(x=>x.id===id);if(x)x.qty++;else cart.push({id:p.id,name:p.name,sku:p.sku,barcode:p.barcode,category:p.categories?.name||"",price:Number(p.selling_price||0),vat:Number(p.vat_percent||0),qty:1,discountPct:0});renderCart()}
 function changeCartQty(i,v){const q=Math.max(0,Number(v||0));if(q===0)cart.splice(i,1);else cart[i].qty=q;renderCart()}
 function changeCartDiscount(i,v){cart[i].discountPct=Math.max(0,Number(v||0));renderCart()}
