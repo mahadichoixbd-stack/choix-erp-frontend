@@ -1,6 +1,6 @@
 {
   "name": "choix-erp-desktop",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "CHOIX ERP Windows desktop launcher",
   "main": "main.js",
   "private": true,
