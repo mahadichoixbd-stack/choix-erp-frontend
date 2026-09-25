@@ -17,7 +17,7 @@ jobs:
       run:
         working-directory: desktop
     env:
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Build Windows installer
-        run: npm run dist
+        run: npm run dist -- --publish always
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
