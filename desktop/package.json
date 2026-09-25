@@ -1,6 +1,6 @@
 {
   "name": "choix-erp-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CHOIX ERP Windows desktop launcher",
   "main": "main.js",
   "private": true,
@@ -8,7 +8,9 @@
     "start": "electron .",
     "dist": "electron-builder --win"
   },
-  "dependencies": {},
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
   "devDependencies": {
     "electron": "^38.2.0",
     "electron-builder": "^26.0.12"
@@ -21,6 +23,12 @@
     "win": {
       "target": ["nsis", "portable"],
       "artifactName": "CHOIX-ERP-${version}-${arch}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "mahadichoixbd-stack",
+      "repo": "choix-erp-frontend",
+      "releaseType": "release"
     },
     "nsis": {
       "oneClick": false,
