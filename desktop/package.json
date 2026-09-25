@@ -1,0 +1,33 @@
+{
+  "name": "choix-erp-desktop",
+  "version": "1.0.0",
+  "description": "CHOIX ERP Windows desktop launcher",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "bd.choix.erp.desktop",
+    "productName": "CHOIX ERP",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "package.json"],
+    "win": {
+      "target": ["nsis", "portable"],
+      "artifactName": "CHOIX-ERP-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CHOIX ERP"
+    }
+  }
+}
