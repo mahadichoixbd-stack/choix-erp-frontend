@@ -7,12 +7,17 @@ on:
       - 'desktop/**'
       - '.github/workflows/build-windows-desktop.yml'
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
     defaults:
       run:
         working-directory: desktop
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,4 +37,6 @@ jobs:
           name: CHOIX-ERP-Windows
           path: |
             desktop/dist/*.exe
+            desktop/dist/*.yml
+            desktop/dist/*.blockmap
           if-no-files-found: error
