@@ -20,10 +20,15 @@ function createWindow() {
 
   win.loadURL(ERP_URL);
 
+  const trustedOrigin = new URL(ERP_URL).origin;
   win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url === 'about:blank' || url.startsWith(trustedOrigin)) {
+      return { action: 'allow', overrideBrowserWindowOptions: { width: 1100, height: 800, autoHideMenuBar: true, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } } };
+    }
     if (url.startsWith('https://')) shell.openExternal(url);
     return { action: 'deny' };
   });
+  win.webContents.on('did-create-window', child => { try { child.setMenuBarVisibility(false); } catch (_) {} });
 
   win.webContents.on('did-fail-load', (_event, _code, _description, _validatedURL, isMainFrame) => {
     if (isMainFrame) win.loadURL(ERP_URL).catch(() => {});
