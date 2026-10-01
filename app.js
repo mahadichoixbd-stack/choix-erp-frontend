@@ -3,7 +3,7 @@ const SUPABASE_KEY="sb_publishable_zLxtcpAM-eTXRiV_8n8zrQ_PoZEp5pD";
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 let session=null,profile=null,companyId=null,currentPage="dashboard",products=[],cart=[],currentPermissions=[],authListener=null,choixInitPromise=null;
-const CHOIX_APP_VERSION="2026.10.01.1";
+const CHOIX_APP_VERSION="2026.10.01.2";
 function bootError(message){console.error(message);const m=$("#loginMsg"),c=$("#content");if(m)m.textContent="ERP startup error: "+(message?.message||message);if(c)c.innerHTML=`<div class="card error"><h2>CHOIX ERP Startup Error</h2><p>${esc(message?.message||message)}</p><p class="muted">Refresh once. If it persists, this message identifies the failed startup step.</p></div>`}
 async function checkAppVersion(){try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});const v=await r.json();if(v.version&&v.version!==CHOIX_APP_VERSION){const k="choix-reloaded-"+v.version;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,"1");location.reload()}}}catch(e){}}
 async function init(){if(choixInitPromise)return choixInitPromise;choixInitPromise=(async()=>{try{await checkAppVersion();const {data:{session:s},error}=await sb.auth.getSession();if(error)throw error;session=s;if(session)await enterApp();else $("#login").classList.remove("hidden");if(!authListener){const {data}=sb.auth.onAuthStateChange(async(_e,next)=>{session=next;if(next){try{await enterApp()}catch(e){bootError(e)}}else{profile=null;companyId=null;currentPermissions=[];$("#app")?.classList.add("hidden");$("#login")?.classList.remove("hidden")}});authListener=data?.subscription||null}}catch(e){bootError(e)}})();return choixInitPromise}
