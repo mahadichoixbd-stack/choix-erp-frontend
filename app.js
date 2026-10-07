@@ -280,12 +280,6 @@ async function advancedReportsRange(from,to){
 async function trialBalance(){const {data,error}=await sb.from('v_trial_balance').select('account_code,account_name,account_type,total_debit,total_credit,balance').order('account_code').limit(500);tablePage('Trial Balance',data,error)}
 async function profitLoss(){const {data,error}=await sb.from('v_profit_loss_summary').select('account_type,account_code,account_name,net_balance').order('account_type').order('account_code').limit(500);tablePage('Profit & Loss Summary',data,error)}
 async function backfillJournals(){if(!confirm('Create missing automatic journals for existing posted sales and purchases?'))return;const {data,error}=await sb.rpc('backfill_automatic_journals');if(error)return toast(error.message,'error');toast(`Backfill processed ${data?.processed||0} transaction(s)`);advancedReports()}
-async function reports(){const {data,error}=await sb.from('v_daily_sales_summary').select('*').order('sale_date',{ascending:false}).limit(365);if(error)return tablePage('Sales Reports',data,error);$('#content').innerHTML=`<div class="section-head"><div><h2>Sales Reports</h2><div class="muted">Daily posted sales</div></div><button class="primary" onclick="advancedReports()">Advanced Dashboard</button></div>${renderTable(data,null)}`}
-async function customerLedger(){const {data,error}=await sb.from('v_customer_ledger').select('customer_id,name,phone,transaction_type,reference_no,transaction_date,debit,credit,description').order('transaction_date',{ascending:false}).limit(1000);if(error)return tablePage('Customer Ledger',data,error);tablePage('Customer Ledger',data,null);}
-async function supplierLedger(){const {data,error}=await sb.from('v_supplier_ledger').select('supplier_id,name,phone,transaction_type,reference_no,transaction_date,debit,credit,description').order('transaction_date',{ascending:false}).limit(1000);if(error)return tablePage('Supplier Ledger',data,error);tablePage('Supplier Ledger',data,null);}
-
-window.init=init;
-init();
 async function reports(){return reportCenter()}
 async function reportCenter(){
  const branches=await sb.from('branches').select('id,name').eq('is_active',true).order('name');
