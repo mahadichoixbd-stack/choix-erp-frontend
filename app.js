@@ -3,7 +3,7 @@ const SUPABASE_KEY="sb_publishable_zLxtcpAM-eTXRiV_8n8zrQ_PoZEp5pD";
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 let session=null,profile=null,companyId=null,currentPage="dashboard",products=[],cart=[],currentPermissions=[],authListener=null,choixInitPromise=null;
-const CHOIX_APP_VERSION="2026.10.08.2";
+const CHOIX_APP_VERSION="2026.10.08.3";
 function bootError(message){console.error(message);const m=$("#loginMsg"),c=$("#content");if(m)m.textContent="ERP startup error: "+(message?.message||message);if(c)c.innerHTML=`<div class="card error"><h2>CHOIX ERP Startup Error</h2><p>${esc(message?.message||message)}</p><p class="muted">Refresh once. If it persists, this message identifies the failed startup step.</p></div>`}
 async function checkAppVersion(){try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});const v=await r.json();if(v.version&&v.version!==CHOIX_APP_VERSION){const k="choix-reloaded-"+v.version;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,"1");location.reload()}}}catch(e){}}
 async function init(){if(choixInitPromise)return choixInitPromise;choixInitPromise=(async()=>{try{await checkAppVersion();const {data:{session:s},error}=await sb.auth.getSession();if(error)throw error;session=s;if(session)await enterApp();else $("#login").classList.remove("hidden");if(!authListener){const {data}=sb.auth.onAuthStateChange(async(_e,next)=>{session=next;if(next){try{await enterApp()}catch(e){bootError(e)}}else{profile=null;companyId=null;currentPermissions=[];$("#app")?.classList.add("hidden");$("#login")?.classList.remove("hidden")}});authListener=data?.subscription||null}}catch(e){bootError(e)}})();return choixInitPromise}
@@ -292,14 +292,25 @@ async function reportCenter(){
  const opts=(branches.data||[]).map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('');
  const today=new Date().toISOString().slice(0,10), month=new Date().toISOString().slice(0,7)+'-01';
  $('#content').innerHTML=`<div class="section-head"><div><h2>Reports Center</h2><div class="muted">Sales, purchase, expense, collection, stock, vouchers and ledger reports.</div></div><button onclick="advancedReports()">Dashboard Analytics</button></div>
- <div class="card"><div class="report-filter"><label>Report<select id="rp_type"><option value="sales">Sales</option><option value="purchases">Purchase</option><option value="expenses">Expense</option><option value="customer_payments">Customer Collection</option><option value="supplier_payments">Supplier Payment</option><option value="stock">Stock Movement</option><option value="vouchers">Vouchers</option><option value="ledger">General Ledger</option></select></label><label>From<input id="rp_from" type="date" value="${month}"></label><label>To<input id="rp_to" type="date" value="${today}"></label><label>Branch<select id="rp_branch"><option value="">All Branches</option>${opts}</select></label><button class="primary" onclick="runERPReport()">Generate Report</button></div></div><div id="reportResult"></div>`;
+ <div class="card"><div class="report-filter"><label>Report<select id="rp_type"><option value="sales">Sales</option><option value="monthly_sales">Monthly Sales</option><option value="purchases">Purchase</option><option value="expenses">Expense</option><option value="customer_payments">Customer Collection</option><option value="supplier_payments">Supplier Payment</option><option value="stock">Stock Movement</option><option value="stock_valuation">Stock Valuation</option><option value="vouchers">Vouchers</option><option value="ledger">General Ledger</option></select></label><label>From<input id="rp_from" type="date" value="${month}"></label><label>To<input id="rp_to" type="date" value="${today}"></label><label>Branch<select id="rp_branch"><option value="">All Branches</option>${opts}</select></label><button class="primary" onclick="runERPReport()">Generate Report</button></div></div><div id="reportResult"></div>`;
  await runERPReport();
 }
 async function runERPReport(){
  const type=$('#rp_type').value,from=$('#rp_from').value,to=$('#rp_to').value,branch=$('#rp_branch').value||null;
- const {data,error}=await sb.rpc('get_erp_report',{p_report:type,p_from:from,p_to:to,p_branch_id:branch});
+ let data,error;
+ if(type==='monthly_sales'){
+   let q=sb.from('v_monthly_sales_summary').select('*').gte('month_date',from).lte('month_date',to).order('month_date',{ascending:false});
+   if(branch)q=q.eq('branch_id',branch);
+   ({data,error}=await q);
+ } else if(type==='stock_valuation'){
+   let q=sb.from('v_stock_valuation').select('*').order('stock_value',{ascending:false}).limit(1000);
+   if(branch){const ws=await sb.from('warehouses').select('id').eq('branch_id',branch).eq('is_active',true);if(ws.error)error=ws.error;else q=q.in('warehouse_id',(ws.data||[]).map(x=>x.id));}
+   if(!error)({data,error}=await q);
+ } else {
+   ({data,error}=await sb.rpc('get_erp_report',{p_report:type,p_from:from,p_to:to,p_branch_id:branch}));
+ }
  if(error)return $('#reportResult').innerHTML=`<div class="card error">${esc(error.message)}</div>`;
- const s=data?.summary||{},rows=data?.rows||[];
+ const s=data?.summary||{},rows=data?.rows||((Array.isArray(data))?data:[]);
  const summary=Object.entries(s).map(([k,v])=>stat(k.replaceAll('_',' '),typeof v==='number'?Number(v).toLocaleString():v)).join('');
  $('#reportResult').innerHTML=`<div class="grid">${summary}</div><div class="card"><div class="section-head"><h3>${type.replaceAll('_',' ').toUpperCase()}</h3><button class="primary" onclick="printReport('CHOIX ERP '+type)">🖨 Print</button></div>${renderTable(rows,null)}</div>`;
 }
