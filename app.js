@@ -64,7 +64,7 @@ async function vouchers(){
  const rows=(data||[]).map(r=>({...r,
    action:`<button onclick="printVoucher('${r.id}')">🖨 Print</button>`
  }));
- $('#content').innerHTML=`<div class="section-head"><div><h2>Debit / Credit Vouchers</h2><div class="muted">Manual vouchers post a balanced debit/credit journal automatically.</div></div><div class="tabs"><button class="primary" onclick="voucherForm('DEBIT')">+ Debit Voucher</button><button onclick="voucherForm('CREDIT')">+ Credit Voucher</button></div></div><div class="card">${renderTable(rows,null)}</div>`;
+ $('#content').innerHTML=`<div class="section-head"><div><h2>Debit / Credit Vouchers</h2><div class="muted">Manual vouchers post a balanced debit/credit journal automatically.</div></div><div class="tabs"><button class="primary" onclick="voucherForm('DEBIT')">+ Debit</button><button onclick="voucherForm('CREDIT')">+ Credit</button><button onclick="voucherForm('JOURNAL')">+ Journal</button><button onclick="voucherForm('CONTRA')">+ Contra</button><button onclick="voucherForm('PAYMENT')">+ Payment</button><button onclick="voucherForm('RECEIPT')">+ Receipt</button></div></div><div class="card">${renderTable(rows,null)}</div>`;
 }
 async function voucherForm(type='DEBIT'){
  const [a,b]=await Promise.all([
