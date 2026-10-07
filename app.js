@@ -3,7 +3,7 @@ const SUPABASE_KEY="sb_publishable_zLxtcpAM-eTXRiV_8n8zrQ_PoZEp5pD";
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 let session=null,profile=null,companyId=null,currentPage="dashboard",products=[],cart=[],currentPermissions=[],authListener=null,choixInitPromise=null;
-const CHOIX_APP_VERSION="2026.10.08.1";
+const CHOIX_APP_VERSION="2026.10.08.2";
 function bootError(message){console.error(message);const m=$("#loginMsg"),c=$("#content");if(m)m.textContent="ERP startup error: "+(message?.message||message);if(c)c.innerHTML=`<div class="card error"><h2>CHOIX ERP Startup Error</h2><p>${esc(message?.message||message)}</p><p class="muted">Refresh once. If it persists, this message identifies the failed startup step.</p></div>`}
 async function checkAppVersion(){try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});const v=await r.json();if(v.version&&v.version!==CHOIX_APP_VERSION){const k="choix-reloaded-"+v.version;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,"1");location.reload()}}}catch(e){}}
 async function init(){if(choixInitPromise)return choixInitPromise;choixInitPromise=(async()=>{try{await checkAppVersion();const {data:{session:s},error}=await sb.auth.getSession();if(error)throw error;session=s;if(session)await enterApp();else $("#login").classList.remove("hidden");if(!authListener){const {data}=sb.auth.onAuthStateChange(async(_e,next)=>{session=next;if(next){try{await enterApp()}catch(e){bootError(e)}}else{profile=null;companyId=null;currentPermissions=[];$("#app")?.classList.add("hidden");$("#login")?.classList.remove("hidden")}});authListener=data?.subscription||null}}catch(e){bootError(e)}})();return choixInitPromise}
@@ -59,59 +59,43 @@ async function users(){
  <div class="card"><div class="section-head"><h3>ERP Users</h3><input class="user-filter" placeholder="Search user / email / role" oninput="filterTable(this.value)"></div>${renderTable((u.data||[]).map(x=>({...x,role:x.roles?.name||'',status:x.is_active?'Active':'Inactive'})),null)}</div>`;
 } 
 async function vouchers(){
- const {data,error}=await sb.from('v_account_voucher_print').select('*').order('voucher_date',{ascending:false}).limit(300);
- if(error)return tablePage('Debit / Credit Vouchers',data,error);
- const rows=(data||[]).map(r=>({...r,
-   action:`<button onclick="printVoucher('${r.id}')">🖨 Print</button>`
- }));
- $('#content').innerHTML=`<div class="section-head"><div><h2>Debit / Credit Vouchers</h2><div class="muted">Manual vouchers post a balanced debit/credit journal automatically.</div></div><div class="tabs"><button class="primary" onclick="voucherForm('DEBIT')">+ Debit</button><button onclick="voucherForm('CREDIT')">+ Credit</button><button onclick="voucherForm('JOURNAL')">+ Journal</button><button onclick="voucherForm('CONTRA')">+ Contra</button><button onclick="voucherForm('PAYMENT')">+ Payment</button><button onclick="voucherForm('RECEIPT')">+ Receipt</button></div></div><div class="card">${renderTable(rows,null)}</div>`;
+ const {data,error}=await sb.from('v_account_voucher_print').select('*').order('voucher_date',{ascending:false}).limit(500);
+ if(error)return tablePage('Voucher Register',data,error);
+ const rows=(data||[]).map(r=>({...r,action:`<button onclick="printVoucher('${r.id}')">🖨 Print</button>`}));
+ $('#content').innerHTML=`<div class="section-head"><div><h2>Voucher Register</h2><div class="muted">All manual accounting vouchers are posted as balanced journal entries.</div></div><div class="tabs">
+ <button class="primary" onclick="voucherForm('DEBIT')">+ Debit</button><button onclick="voucherForm('CREDIT')">+ Credit</button><button onclick="voucherForm('JOURNAL')">+ Journal</button><button onclick="voucherForm('CONTRA')">+ Contra</button><button onclick="voucherForm('PAYMENT')">+ Payment</button><button onclick="voucherForm('RECEIPT')">+ Receipt</button></div></div><div class="card">${renderTable(rows,null)}</div>`;
 }
 async function voucherForm(type='DEBIT'){
- const [a,b]=await Promise.all([
-   sb.from('accounts').select('id,account_code,account_name,account_type').eq('is_active',true).order('account_code').limit(500),
-   sb.from('branches').select('id,name').eq('is_active',true).order('name')
- ]);
+ const labels={DEBIT:'Debit Voucher',CREDIT:'Credit Voucher',JOURNAL:'Journal Voucher',CONTRA:'Contra Voucher',PAYMENT:'Payment Voucher',RECEIPT:'Receipt Voucher'};
+ const [a,b]=await Promise.all([sb.from('accounts').select('id,account_code,account_name,account_type').eq('is_active',true).order('account_code').limit(500),sb.from('branches').select('id,name').eq('is_active',true).order('name')]);
  if(a.error)return toast(a.error.message,'error');
  const today=new Date().toISOString().slice(0,10);
  const branchOptions=(b.data||[]).filter(x=>!profile?.branch_id||x.id===profile.branch_id).map(x=>`<option value="${x.id}" ${x.id===profile?.branch_id?'selected':''}>${esc(x.name)}</option>`).join('');
  const accountOptions=(a.data||[]).map(x=>`<option value="${x.id}">${esc(x.account_code)} - ${esc(x.account_name)}</option>`).join('');
- modal(type==='DEBIT'?'Debit Voucher':'Credit Voucher',`<form onsubmit="saveVoucher(event,'${type}')">
-   <div class="form-grid">
-     <label>Voucher Date<input id="v_date" type="date" value="${today}" required></label>
-     <label>Branch<select id="v_branch" required>${branchOptions}</select></label>
-     <label>Debit Account<select id="v_debit" required><option value="">Select debit account</option>${accountOptions}</select></label>
-     <label>Credit Account<select id="v_credit" required><option value="">Select credit account</option>${accountOptions}</select></label>
-     <label>Amount<input id="v_amount" type="number" min="0.01" step="0.01" placeholder="0.00" required></label>
-     <label>Narration<input id="v_narration" maxlength="500" placeholder="Voucher narration"></label>
-   </div>
-   <div class="card" style="margin-top:12px"><b>${type==='DEBIT'?'Debit Voucher':'Credit Voucher'}</b><p class="muted">The system will create the matching journal entry automatically and keep Debit = Credit.</p></div>
-   <button class="primary">Post ${type==='DEBIT'?'Debit':'Credit'} Voucher</button>
- </form>`);
+ modal(labels[type]||'Voucher',`<form onsubmit="saveVoucher(event,'${type}')"><div class=form-grid>
+ <label>Voucher Date<input id=v_date type=date value="${today}" required></label><label>Branch<select id=v_branch required>${branchOptions}</select></label>
+ <label>Debit Account<select id=v_debit required><option value="">Select debit account</option>${accountOptions}</select></label>
+ <label>Credit Account<select id=v_credit required><option value="">Select credit account</option>${accountOptions}</select></label>
+ <label>Amount<input id=v_amount type=number min=.01 step=.01 placeholder="0.00" required></label>
+ <label>Narration<input id=v_narration maxlength=500 placeholder="Narration"></label></div>
+ <div class=card style="margin-top:12px"><b>${labels[type]}</b><p class=muted>Posting creates one balanced journal: Debit = Credit.</p></div>
+ <button class=primary>Post ${labels[type]}</button></form>`);
 }
 async function saveVoucher(e,type){
  e.preventDefault();
  const amount=Number($('#v_amount').value||0);
- const {data,error}=await sb.rpc('create_account_voucher',{
-   p_voucher_type:type,
-   p_branch_id:$('#v_branch').value||null,
-   p_voucher_date:$('#v_date').value?new Date($('#v_date').value+'T00:00:00').toISOString():new Date().toISOString(),
-   p_debit_account_id:$('#v_debit').value,
-   p_credit_account_id:$('#v_credit').value,
-   p_amount:amount,
-   p_narration:$('#v_narration').value.trim()||null
- });
+ if(amount<=0)return toast('Amount must be greater than zero','error');
+ if($('#v_debit').value===$('#v_credit').value)return toast('Debit and Credit accounts must be different','error');
+ const {data,error}=await sb.rpc('create_account_voucher',{p_voucher_type:type,p_branch_id:$('#v_branch').value||null,p_voucher_date:new Date($('#v_date').value+'T00:00:00').toISOString(),p_debit_account_id:$('#v_debit').value,p_credit_account_id:$('#v_credit').value,p_amount:amount,p_narration:$('#v_narration').value.trim()||null});
  if(error)return toast(error.message,'error');
- closeModal();
- toast((type==='DEBIT'?'Debit':'Credit')+' Voucher posted successfully');
- await vouchers();
+ closeModal();toast((type||'').toLowerCase()+' voucher posted');await vouchers();
 }
 async function printVoucher(id){
  const {data,error}=await sb.from('v_account_voucher_print').select('*').eq('id',id).single();
  if(error)return toast(error.message,'error');
- const win=window.open('','_blank','width=850,height=700');
- if(!win)return toast('Please allow pop-ups for CHOIX ERP to print.','error');
+ const win=window.open('','_blank','width=850,height=700');if(!win)return toast('Please allow pop-ups for CHOIX ERP to print.','error');
  const date=new Date(data.voucher_date).toLocaleDateString();
- win.document.write(`<!doctype html><html><head><title>${esc(data.voucher_no)}</title><style>body{font-family:Arial,sans-serif;padding:30px;color:#111}.voucher{max-width:760px;margin:auto;border:1px solid #222;padding:28px}.head{text-align:center;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:20px}.head h1{margin:0;font-size:24px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px}.amount{font-size:22px;font-weight:800;margin:20px 0}.lines{width:100%;border-collapse:collapse}.lines th,.lines td{border:1px solid #bbb;padding:10px;text-align:left}.lines th:last-child,.lines td:last-child{text-align:right}.sign{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:60px}.sign div{border-top:1px solid #555;padding-top:8px;text-align:center}@media print{body{padding:0}.voucher{border:0}}</style></head><body><div class="voucher"><div class="head"><h1>CHOIX ERP</h1><div>${data.voucher_type} VOUCHER</div></div><div class="meta"><div><b>Voucher No:</b> ${esc(data.voucher_no)}</div><div><b>Date:</b> ${esc(date)}</div><div><b>Branch:</b> ${esc(data.branch_name||'Main')}</div><div><b>Status:</b> ${esc(data.status)}</div></div><table class="lines"><thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead><tbody><tr><td>${esc(data.debit_account_code+' - '+data.debit_account_name)}</td><td>${Number(data.amount).toLocaleString()}</td><td>0.00</td></tr><tr><td>${esc(data.credit_account_code+' - '+data.credit_account_name)}</td><td>0.00</td><td>${Number(data.amount).toLocaleString()}</td></tr></tbody></table><div class="amount">Amount: ৳ ${Number(data.amount).toLocaleString()}</div><p><b>Narration:</b> ${esc(data.narration||'')}</p><div class="sign"><div>Prepared By<br><b>${esc(data.created_by_name||'')}</b></div><div>Authorized By</div></div></div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);
+ win.document.write(`<!doctype html><html><head><title>${esc(data.voucher_no)}</title><style>body{font-family:Arial;padding:30px}.voucher{max-width:760px;margin:auto;border:1px solid #222;padding:28px}.head{text-align:center;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:20px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px}.lines{width:100%;border-collapse:collapse;margin-top:20px}.lines th,.lines td{border:1px solid #bbb;padding:10px}.lines td:nth-child(2),.lines td:nth-child(3){text-align:right}.amount{font-size:22px;font-weight:800;margin:20px 0}.sign{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:60px}.sign div{border-top:1px solid #555;padding-top:8px;text-align:center}@media print{body{padding:0}.voucher{border:0}}</style></head><body><div class=voucher><div class=head><h1>CHOIX ERP</h1><div>${esc(data.voucher_type)} VOUCHER</div></div><div class=meta><div><b>No:</b> ${esc(data.voucher_no)}</div><div><b>Date:</b> ${esc(date)}</div><div><b>Branch:</b> ${esc(data.branch_name||'Main')}</div><div><b>Status:</b> ${esc(data.status)}</div></div><table class=lines><tr><th>Account</th><th>Debit</th><th>Credit</th></tr><tr><td>${esc(data.debit_account_code+' - '+data.debit_account_name)}</td><td>${Number(data.amount).toLocaleString()}</td><td>0.00</td></tr><tr><td>${esc(data.credit_account_code+' - '+data.credit_account_name)}</td><td>0.00</td><td>${Number(data.amount).toLocaleString()}</td></tr></table><div class=amount>Amount: ৳ ${Number(data.amount).toLocaleString()}</div><p><b>Narration:</b> ${esc(data.narration||'')}</p><div class=sign><div>Prepared By<br><b>${esc(data.created_by_name||'')}</b></div><div>Authorized By</div></div></div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\\/script></body></html>`);
  win.document.close();
 }
 function roleForm(){modal("Create ERP Role",`<form onsubmit="saveRole(event)"><div class=form-grid><input id=r_name placeholder="Role name" required><input id=r_desc placeholder="Description"></div><button class=primary>Create Role</button></form>`)}
